@@ -56,7 +56,7 @@ pipeline {
             steps {
                 echo "Compiling container image using local PODMAN daemon..."
                 // Podman contains exact structural CLI mapping to Docker CLI instructions
-                sh "${PODMAN_BIN} build -t ${RE  GISTRY}/${APP_NAME}:${IMAGE_TAG} ."
+                sh "${PODMAN_BIN} build -t ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ."
                 sh "${PODMAN_BIN} tag ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ${REGISTRY}/${APP_NAME}:latest"
             }
         }
