@@ -1,10 +1,8 @@
 pipeline {
-agent any
+    agent any
 
     tools {
-        // This matches the name you configured in Jenkins Tools UI.
-        // Jenkins handles downloading it and setting up the PATH for Windows/Linux.
-        maven 'maven3'
+        maven 'M3'
     }
 
     environment {
@@ -26,13 +24,14 @@ agent any
         stage('Build & Compile') {
             steps {
                 echo 'Compiling Java classes...'
-                // No more './mvnw' or 'mvnw.cmd' checks! Just use 'mvn'.
-                // The 'withMaven' wrapper takes care of cross-platform execution.
                 withMaven {
-                    if (isUnix()) {
-                        sh 'mvn clean compile -DskipTests'
-                    } else {
-                        bat 'mvn clean compile -DskipTests'
+                    // Wrapped inside script block so Groovy 'if' compiles successfully
+                    script {
+                        if (isUnix()) {
+                            sh 'mvn clean compile -DskipTests'
+                        } else {
+                            bat 'mvn clean compile -DskipTests'
+                        }
                     }
                 }
             }
@@ -42,10 +41,12 @@ agent any
             steps {
                 echo 'Running testing suite...'
                 withMaven {
-                    if (isUnix()) {
-                        sh 'mvn test'
-                    } else {
-                        bat 'mvn test'
+                    script {
+                        if (isUnix()) {
+                            sh 'mvn test'
+                        } else {
+                            bat 'mvn test'
+                        }
                     }
                 }
             }
@@ -60,10 +61,12 @@ agent any
             steps {
                 echo 'Packaging application fat executable JAR...'
                 withMaven {
-                    if (isUnix()) {
-                        sh 'mvn package -DskipTests'
-                    } else {
-                        bat 'mvn package -DskipTests'
+                    script {
+                        if (isUnix()) {
+                            sh 'mvn package -DskipTests'
+                        } else {
+                            bat 'mvn package -DskipTests'
+                        }
                     }
                 }
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
@@ -90,7 +93,6 @@ agent any
                 echo 'Deploying application to local Podman runtime...'
                 script {
                     if (isUnix()) {
-                        // 1. Stop and remove the existing container if it is already running (Unix)
                         sh """
                             if ${PODMAN_BIN} ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
                                 echo "Stopping and removing existing container : ${CONTAINER_NAME} ..."
@@ -98,11 +100,8 @@ agent any
                                 ${PODMAN_BIN} rm ${CONTAINER_NAME} || true
                             fi
                         """
-                        // 2. Run the new container mapping port 8080 (Unix)
                         sh "${PODMAN_BIN} run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${REGISTRY}/${APP_NAME}:${IMAGE_TAG}"
                     } else {
-                        // 1. Stop and remove the existing container if it is already running (Windows Batch)
-                        // Uses podman inspect to avoid grep dependencies on native CMD environments
                         bat """
                             ${PODMAN_BIN} inspect ${CONTAINER_NAME} >nul 2>&1
                             if %ERRORLEVEL% EQU 0 (
@@ -111,7 +110,6 @@ agent any
                                 ${PODMAN_BIN} rm ${CONTAINER_NAME}
                             )
                         """
-                        // 2. Run the new container mapping port 8080 (Windows Batch)
                         bat "${PODMAN_BIN} run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${REGISTRY}/${APP_NAME}:${IMAGE_TAG}"
                     }
                 }
