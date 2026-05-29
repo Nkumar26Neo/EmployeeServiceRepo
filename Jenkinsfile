@@ -8,6 +8,7 @@ pipeline {
         CONTAINER_NAME = "employee-service-api"
         APP_PORT       = "8080"
         PODMAN_BIN     = 'podman' // Configured for Podman binary execution
+        SHELL          = 'bat'  // Use 'sh' for unix
     }
 
     options {
@@ -17,6 +18,10 @@ pipeline {
     }
 
     stages {
+        if (isUnix()) {
+            SHELL = 'sh'
+        }
+
         stage('Checkout Source') {
             steps {
                 echo 'Checking out source repository...'
@@ -27,14 +32,14 @@ pipeline {
         stage('Build & Compile') {
             steps {
                 echo 'Compiling Java classes and dependencies...'
-                sh './mvnw clean compile -DskipTests'
+                ${SHELL} './mvnw clean compile -DskipTests'
             }
         }
 
         stage('Execute Tests') {
             steps {
                 echo 'Running unit integration testing suite using JUnit 5...'
-                sh './mvnw test'
+                ${SHELL} './mvnw test'
             }
             post {
                 always {
@@ -47,7 +52,7 @@ pipeline {
         stage('Package Application') {
             steps {
                 echo 'Packaging application fat executable JAR...'
-                sh './mvnw package -DskipTests'
+                ${SHELL} './mvnw package -DskipTests'
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
         }
@@ -56,8 +61,8 @@ pipeline {
             steps {
                 echo "Compiling container image using local PODMAN daemon..."
                 // Podman contains exact structural CLI mapping to Docker CLI instructions
-                sh "${PODMAN_BIN} build -t ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ."
-                sh "${PODMAN_BIN} tag ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ${REGISTRY}/${APP_NAME}:latest"
+                ${SHELL} "${PODMAN_BIN} build -t ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ."
+                ${SHELL} "${PODMAN_BIN} tag ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ${REGISTRY}/${APP_NAME}:latest"
             }
         }
 
@@ -66,7 +71,7 @@ pipeline {
                 echo 'Deploying application to local Podman runtime...'
 
                 // 1. Stop and remove the existing container if it is already running
-                sh """
+                ${SHELL} """
                     if ${PODMAN_BIN} ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
                         echo "Stopping and removing existing container : ${CONTAINER_NAME} ..."
                         ${PODMAN_BIN} stop ${CONTAINER_NAME} || true
@@ -75,7 +80,7 @@ pipeline {
                 """
 
                 // 2. Run the new container mapping port 8080
-                sh "${PODMAN_BIN} run -d --name ${CONTAINER_NAME} -p ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ${REGISTRY}/${APP_NAME}:latest"
+                ${SHELL} "${PODMAN_BIN} run -d --name ${CONTAINER_NAME} -p ${REGISTRY}/${APP_NAME}:${IMAGE_TAG} ${REGISTRY}/${APP_NAME}:latest"
 
                 echo "Deployment complete. Application is available at http://localhost:8080/EmployeeService/api/employees/health"
             }
@@ -88,9 +93,9 @@ pipeline {
 //                withCredentials([usernamePassword(credentialsId: 'registry-credentials',
 //                                                 usernameVariable: 'REG_USER',
 //                                                 passwordVariable: 'REG_PASS')]) {
-//                    sh "${PODMAN_BIN} login -u ${REG_USER} -p ${REG_PASS} ${REGISTRY}"
-//                    sh "${PODMAN_BIN} push ${REGISTRY}/${APP_NAME}:${IMAGE_TAG}"
-//                    sh "${PODMAN_BIN} push ${REGISTRY}/${APP_NAME}:latest"
+//                    ${SHELL} "${PODMAN_BIN} login -u ${REG_USER} -p ${REG_PASS} ${REGISTRY}"
+//                    ${SHELL} "${PODMAN_BIN} push ${REGISTRY}/${APP_NAME}:${IMAGE_TAG}"
+//                    ${SHELL} "${PODMAN_BIN} push ${REGISTRY}/${APP_NAME}:latest"
 //                }
 //            }
 //        }
@@ -99,8 +104,8 @@ pipeline {
 //            steps {
 //                echo "Triggering deployment rollback on local cluster environment..."
 //                // Run kubectl command applying manifest structures containing modern container image tags
-//                sh "sed -i 's|IMAGE_PLACEHOLDER|${REGISTRY}/${APP_NAME}:${IMAGE_TAG}|g' k8s-deployment.yaml"
-//                sh "kubectl apply -f k8s-deployment.yaml"
+//                ${SHELL} "sed -i 's|IMAGE_PLACEHOLDER|${REGISTRY}/${APP_NAME}:${IMAGE_TAG}|g' k8s-deployment.yaml"
+//                ${SHELL} "kubectl apply -f k8s-deployment.yaml"
 //
 //                echo "Microservice successfully upgraded to active revision: ${IMAGE_TAG}"
 //            }
