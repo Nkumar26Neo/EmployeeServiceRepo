@@ -105,7 +105,7 @@ pipeline {
 //                echo "Microservice successfully upgraded to active revision: ${IMAGE_TAG}"
 //            }
 //        }
-//    }
+    }
 
     post {
         success {
