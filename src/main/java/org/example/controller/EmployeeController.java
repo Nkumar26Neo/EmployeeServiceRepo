@@ -32,6 +32,11 @@ public class EmployeeController {
         initializeMockData();
     }
 
+    @GetMapping("/health")
+    public ResponseEntity<String> healthCheck(){
+        return ResponseEntity.ok("Employee Service Healthy");
+    }
+
     private void initializeMockData() {
         logger.info("[JVM-25] Pre-populating employee records...");
         saveToMap(new Employee(101, "Sarah Connor", "Lead Cybersecurity Engineer", "Engineering", "sarah.connor@skygrid.io", 145000, "ACTIVE"));
