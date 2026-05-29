@@ -1,5 +1,11 @@
 pipeline {
-    agent any
+agent any
+
+    tools {
+        // This matches the name you configured in Jenkins Tools UI.
+        // Jenkins handles downloading it and setting up the PATH for Windows/Linux.
+        maven 'maven3'
+    }
 
     environment {
         APP_NAME       = 'employee-service'
@@ -7,32 +13,26 @@ pipeline {
         IMAGE_TAG      = "1.0.${BUILD_NUMBER}"
         CONTAINER_NAME = "employee-service-api"
         APP_PORT       = "8080"
-        PODMAN_BIN     = 'podman' // Configured for Podman binary execution
-    }
-
-    options {
-        timeout(time: 30, unit: 'MINUTES')
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        disableConcurrentBuilds()
+        PODMAN_BIN     = 'podman'
     }
 
     stages {
-
         stage('Checkout Source') {
             steps {
-                echo 'Checking out source repository...'
                 checkout scm
             }
         }
 
         stage('Build & Compile') {
             steps {
-                echo 'Compiling Java classes and dependencies...'
-                script {
+                echo 'Compiling Java classes...'
+                // No more './mvnw' or 'mvnw.cmd' checks! Just use 'mvn'.
+                // The 'withMaven' wrapper takes care of cross-platform execution.
+                withMaven {
                     if (isUnix()) {
-                        sh './mvnw clean compile -DskipTests'
+                        sh 'mvn clean compile -DskipTests'
                     } else {
-                        bat 'mvnw.cmd clean compile -DskipTests'
+                        bat 'mvn clean compile -DskipTests'
                     }
                 }
             }
@@ -40,18 +40,17 @@ pipeline {
 
         stage('Execute Tests') {
             steps {
-                echo 'Running unit integration testing suite using JUnit 5...'
-                script {
+                echo 'Running testing suite...'
+                withMaven {
                     if (isUnix()) {
-                        sh './mvnw test'
+                        sh 'mvn test'
                     } else {
-                        bat 'mvnw.cmd test'
+                        bat 'mvn test'
                     }
                 }
             }
             post {
                 always {
-                    // Harvest and publish JUnit status records into Jenkins Dashboard
                     junit '**/target/surefire-reports/*.xml'
                 }
             }
@@ -60,11 +59,11 @@ pipeline {
         stage('Package Application') {
             steps {
                 echo 'Packaging application fat executable JAR...'
-                script {
+                withMaven {
                     if (isUnix()) {
-                        sh './mvnw package -DskipTests'
+                        sh 'mvn package -DskipTests'
                     } else {
-                        bat 'mvnw.cmd package -DskipTests'
+                        bat 'mvn package -DskipTests'
                     }
                 }
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
